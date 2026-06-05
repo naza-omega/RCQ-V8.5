@@ -1,0 +1,112 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.signal import chirp, detrend, correlate, welch
+
+# ================== RQC v8.5 - Versión Estable y Completa ==================
+np.random.seed(42)
+
+print("="*90)
+print("RQC v8.5 - Retrocausal Quantum Channel")
+print("Con ruido realista de LIGO + Gráficas completas")
+print("="*90)
+
+t_base = np.arange(0, 2.5, 1/4096.0)
+MAX_DELAY = -1250.0
+delays = np.linspace(MAX_DELAY, 0, 180)
+
+def ligo_realistic_noise(n, fs=4096):
+    """Ruido realista de LIGO + glitches"""
+    freqs = np.fft.rfftfreq(n, 1/fs)
+    psd = (1e-44 * (15/freqs)**4) + (1e-46 * (freqs/120)**(-4)) + 8e-48
+    psd = np.maximum(psd, 1e-48)
+    psd[np.isnan(psd) | np.isinf(psd)] = 1e-48
+    
+    white = np.random.normal(0, 1, n)
+    fft_w = np.fft.rfft(white)
+    colored = np.fft.irfft(fft_w * np.sqrt(psd * fs))
+    
+    # Glitches ocasionales
+    if np.random.rand() < 0.18:
+        glitch_t = int(np.random.rand() * (n - 150))
+        glitch_len = 100
+        colored[glitch_t:glitch_t + glitch_len] += np.random.normal(0, 4.2, glitch_len) * \
+                                                   np.exp(-np.linspace(0, 8, glitch_len))
+    return colored
+
+# ================== SIMULACIÓN ==================
+events = {'GW190521': 142, 'GW190426_190642': 105, 'GW200220_061928': 135}
+stack = {det: np.zeros((len(delays), len(t_base))) for det in ['H1', 'L1', 'V1']}
+
+for name, Mf in events.items():
+    f0 = 3050 / Mf
+    print(f"Procesando {name} | Mf = {Mf} M⊙")
+    for i, delay in enumerate(delays):
+        dist = abs(delay) / 1250.0
+        strength = 2.85 * (dist ** 2.75)
+        f_adj = f0 * (0.52 + 0.48 * dist)
+        
+        sig_base = chirp(t_base, f0=f_adj*0.55, f1=f_adj*1.78, t1=2.0, phi=180, method='linear')
+        
+        for det in ['H1', 'L1', 'V1']:
+            noise = ligo_realistic_noise(len(t_base))
+            signal = strength * sig_base
+            y = detrend(noise + signal)
+            stack[det][i] += y
+
+    for det in stack:
+        stack[det] /= len(events)
+
+# ================== ANÁLISIS ==================
+def analyze_detector(stack_det):
+    best = {'snr': 0, 'freq': 0, 'delay': 0}
+    for i, d in enumerate(delays):
+        y = stack_det[i]
+        for f in np.linspace(10, 48, 100):
+            template = chirp(t_base, f0=f*0.55, f1=f*1.78, t1=2.0, phi=180, method='linear')
+            template /= (np.linalg.norm(template) + 1e-8)
+            snr = np.max(np.abs(correlate(y, template, mode='valid'))) / (np.std(y) + 1e-8)
+            if snr > best['snr']:
+                best = {'snr': snr, 'freq': f, 'delay': d}
+    return best
+
+print("\n=== RESULTADOS RQC v8.5 ===")
+for det in ['H1', 'L1', 'V1']:
+    res = analyze_detector(stack[det])
+    print(f"{det} → SNR: {res['snr']:.2f} | Freq: {res['freq']:.2f} Hz | Delay: {res['delay']:.1f} s")
+
+# ================== GRÁFICAS ==================
+plt.figure(figsize=(16, 10))
+
+# 1. Gradiente Retrocausal
+plt.subplot(2, 2, 1)
+strengths = 2.85 * (np.abs(delays)/1250.0)**2.75
+plt.plot(delays, strengths, 'darkred', lw=3)
+plt.title('Gradiente Retrocausal - Señal fuerte en pasado lejano')
+plt.xlabel('Delay Retrocausal (s)')
+plt.ylabel('Fuerza Relativa')
+plt.grid(True, alpha=0.3)
+
+# 2. Señal en delay fuerte
+plt.subplot(2, 2, 2)
+strong_idx = np.argmin(np.abs(delays + 900))
+plt.plot(t_base, stack['H1'][strong_idx], label='H1')
+plt.plot(t_base, stack['L1'][strong_idx], label='L1')
+plt.title('Señal en delay fuerte (~ -900s)')
+plt.legend()
+plt.grid(True, alpha=0.3)
+
+# 3. PSD
+plt.subplot(2, 2, 3)
+f, p = welch(stack['H1'][strong_idx], fs=4096, nperseg=1024)
+plt.semilogy(f, p)
+plt.title('PSD - Señal en delay fuerte')
+plt.xlabel('Frecuencia (Hz)')
+plt.ylabel('Potencia')
+plt.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('RQC_v8.5_Resultados.png', dpi=300)
+plt.show()
+
+print("\n¡Script v8.5 ejecutado correctamente!")
+print("Gráfico guardado como: RQC_v8.5_Resultados.png")
