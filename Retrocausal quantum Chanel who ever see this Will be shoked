@@ -1,0 +1,67 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# =====================================================================
+# SISTEMA DE SIMULACIÓN CUÁNTICA RETROCAUSAL (RQC v8.5)
+# MÓDULO: Detección de Ecos de Fase en el Espectro CMB
+# AUTOR: Nazareth Luna Frescas
+# =====================================================================
+
+class SimuladorCosmologiaLunaG:
+    def __init__(self):
+        # Escala multipolar (l) típica del espectro de potencia
+        self.l = np.arange(2, 2000, 1)
+
+    def espectro_standard_inflacion(self):
+        """
+        Modelo simplificado del espectro de potencia base (Planck).
+        Cae suavemente a escalas pequeñas.
+        """
+        return 1e4 * (self.l**-1.2) * np.exp(-self.l/500)
+
+    def espectro_luna_g(self, amplitud_eco=0.05, frecuencia=0.01):
+        """
+        Calcula el espectro con la perturbación de fase retrocausal.
+        La resonancia introduce oscilaciones (Ecos) en la curva.
+        """
+        base = self.espectro_standard_inflacion()
+        # Modulación armónica: la interferencia constructiva de -t
+        modulacion = 1 + amplitud_eco * np.sin(self.l * frecuencia)
+        return base * modulacion
+
+# =====================================================================
+# EJECUCIÓN Y VISUALIZACIÓN DEL HALLAZGO
+# =====================================================================
+if __name__ == "__main__":
+    sim = SimuladorCosmologiaLunaG()
+    
+    c_l_std = sim.espectro_standard_inflacion()
+    c_l_luna = sim.espectro_luna_g()
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Graficado
+    ax.plot(sim.l, c_l_std, color='#ff4d4d', linestyle='--', label='Modelo Inflación Estándar (Suave)', alpha=0.6)
+    ax.plot(sim.l, c_l_luna, color='#00ffcc', lw=2, label='Ley Luna G (Resonancia de Fase)')
+    
+    # Resaltado de la huella espectral
+    ax.fill_between(sim.l, c_l_std, c_l_luna, color='#00ffcc', alpha=0.2, label='Huella del Eco (Efecto Luna G)')
+    
+    ax.set_title('Entorno RQC v8.5: Firma Espectral de los Ecos de Fase Luna G', color='white', fontsize=14)
+    ax.set_xlabel('Momento Angular ($\\ell$)', color='white')
+    ax.set_ylabel('Potencia Espectral ($C_{\\ell}$)', color='white')
+    
+    # Configuración estilo RQC
+    ax.set_facecolor('#111111')
+    fig.patch.set_facecolor('#1a1a1a')
+    ax.tick_params(colors='white')
+    ax.grid(True, alpha=0.1)
+    ax.legend(facecolor='#111111', edgecolor='#333333', labelcolor='white')
+    
+    plt.tight_layout()
+    
+    print("Módulo de Análisis de Ecos de Fase cargado.")
+    print("Predicción: La huella espectral presenta una oscilación periódica no aleatoria.")
+    print("Estado: Lista para comparar con datasets crudos de Planck.")
+    
+    plt.show()
